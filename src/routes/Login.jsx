@@ -3,6 +3,7 @@ import {useForm} from "../hooks/useForm.js";
 import {useAuth} from "../auth/AuthProvider.jsx";
 import {Navigate, useNavigate} from "react-router-dom";
 import {API_URL} from "../auth/constants.js";
+import {useState} from "react";
 
 export const Login = () => {
     const initialForm = {seller: '', user: '', password: ''};
@@ -16,25 +17,33 @@ export const Login = () => {
     const handleSubmit = async (e) => {
         try {
             e.preventDefault();
-            console.log(seller, user, password);
-            const response = await fetch(`${API_URL}/login`, {
+            const username = `${seller}#${user}`;
+            const grant_type = 'password';
+            const scope = 'token_public token_private';
+            const formData = new FormData();
+            formData.append('grant_type', grant_type);
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('scope', scope);
+            const response = await fetch(`${API_URL}/oauth2/token`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({seller, user, password})
+                // headers: {
+                //     'Content-Type': 'application/json'
+                // },
+                body:formData
+                // body:JSON.stringify({grant_type, username, password, scope})
             });
             if (response.ok) {
                 const data = await response.json();
                 console.log('login success', data);
                 // save token
-                goTo('/dashboard');
+                // goTo('/dashboard');
 
             } else {
                 console.log('something was wrong login fail');
                 const data = await response.json();
                 console.log(data);
-                setErrorResponse(data);
+                setErrorResponse(data.error_description ?? data.error);
             }
 
         } catch (error) {
