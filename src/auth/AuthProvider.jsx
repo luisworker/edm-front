@@ -8,7 +8,8 @@ const AuthContext = createContext({
     saveUser: () => {},
     getRefreshToken: () => {},
     saveUserLogin: () => {},
-    getUserLogin: () => {}
+    getUserLogin: () => {},
+    logout: () => {}
 });
 export function AuthProvider({ children }) {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -18,10 +19,10 @@ export function AuthProvider({ children }) {
 
     useEffect(() => {
 
-        chackAuth();
+        checkAuth();
     }, []);
 
-    const chackAuth = async () => {
+    const checkAuth = async () => {
         if (accessToken) {
             // ya esta autenticado
             setIsAuthenticated(true);
@@ -46,6 +47,17 @@ export function AuthProvider({ children }) {
     }
 
     const getAccessToken = () => {
+        if (!accessToken) {
+            const token = localStorage.getItem('token');
+            if (token) {
+
+                console.log('AuthProvider-getAccessToken 54', token)
+                return token;
+            }
+            else setIsAuthenticated(true)
+        }
+        console.log('AuthProvider-getAccessToken 57', accessToken)
+
         return accessToken;
     }
 
@@ -63,24 +75,40 @@ export function AuthProvider({ children }) {
         // console.log('AuthProvider-saveUser 19', accessToken, refreshToken);
 
         setAccessToken(accessToken);
-        localStorage.setItem('token', JSON.stringify(refreshToken));
+        localStorage.setItem('token', JSON.stringify(accessToken));
+        // localStorage.setItem('token', JSON.stringify(refreshToken));
         setIsAuthenticated(true);
 
     }
 
     const saveUserLogin = (userDto) => {
         console.log('AuthProvider-saveUserLogin 72', userDto);
-
+        localStorage.setItem('user', JSON.stringify(userDto));
         setUserLogin(userDto);
     }
 
     const getUserLogin = () => {
+        if (!userLogin) {
+            const user = localStorage.getItem('user');
+            if (user) {
+                const userDto = json.parse(user);
+                setUserLogin(userDto);
+                return userDto;
+            }
+        }
         return userLogin;
+    }
+
+    const logout = () => {
+        setAccessToken('');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setIsAuthenticated(false);
     }
 
     //obtener los datos del usuario logueado
 
-    return <AuthContext.Provider value={{ isAuthenticated, getAccessToken, saveUser, getRefreshToken, saveUserLogin, getUserLogin}}>
+    return <AuthContext.Provider value={{ isAuthenticated, getAccessToken, saveUser, getRefreshToken, saveUserLogin, getUserLogin, logout}}>
         {children}
     </AuthContext.Provider>
 }
