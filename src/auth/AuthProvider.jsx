@@ -50,13 +50,10 @@ export function AuthProvider({ children }) {
         if (!accessToken) {
             const token = localStorage.getItem('token');
             if (token) {
-
-                console.log('AuthProvider-getAccessToken 54', token)
                 return token;
             }
             else setIsAuthenticated(true)
         }
-        console.log('AuthProvider-getAccessToken 57', accessToken)
 
         return accessToken;
     }
@@ -72,7 +69,7 @@ export function AuthProvider({ children }) {
 
     const saveUser = (userData) => {
         const { accessToken, refreshToken } = userData;
-        // console.log('AuthProvider-saveUser 19', accessToken, refreshToken);
+
 
         setAccessToken(accessToken);
         localStorage.setItem('token', JSON.stringify(accessToken));
@@ -82,7 +79,6 @@ export function AuthProvider({ children }) {
     }
 
     const saveUserLogin = (userDto) => {
-        console.log('AuthProvider-saveUserLogin 72', userDto);
         localStorage.setItem('user', JSON.stringify(userDto));
         setUserLogin(userDto);
     }

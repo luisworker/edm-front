@@ -13,7 +13,7 @@ export const CustomerModals = ({ open, handleClose, rows, handleSelect }) => {
         >
             <Box className="modal-custom">
                 <Typography id="modal-title" variant="h6" component="h2" className="navbar bg-primary-subtle">
-                    Modal Title
+                    Selecione um cliente
                 </Typography>
                 <CustomerTable rows={ rows } handleSelect={handleSelect}></CustomerTable>
                 <Button onClick={handleClose} sx={{ mt: 2 }} variant="contained" color="primary">

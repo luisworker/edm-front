@@ -1,32 +1,34 @@
 import './styles.css'
+
+import {CustomerScreen} from "./components/CustomerScreen.jsx";
+import {CustomerPayment} from "./components/CustomerPayment.jsx";
 import {API_URL} from "../../../auth/constants.js";
 import {useAuth} from "../../../auth/AuthProvider.jsx";
-import {useState} from "react";
-import {useForm} from "./services/hooks/useForm.js";
-import {CustomerModals} from "./services/modals/CustomerModals.jsx";
+import {useEffect, useState} from "react";
+import {useFetchBalance} from "./services/hooks/useFetchBalance.js";
+import {CustomerBalance} from "./components/CustomerBalance.jsx";
+import CustomerBalanceTable from "./components/CustomerBalanceTable.jsx";
+import {useFetchSell} from "./services/hooks/useFetchSell.js";
+import {useFetchPdf} from "./services/hooks/useFetchPdf.js";
+// import {CustomerModals} from "./services/modals/CustomerModals.jsx";
 
-function createData(
+// to test table
+function createData(id, conceitos, unidadesBase, price, montante) {
+    return {
+        id, conceitos, unidadesBase, price, montante,
 
-
-    name,
-    meterSerial,
-    indicatorPrePostAccount,
-    account,
-    tariffDescription
-
-) {
-    return { meterSerial, name, indicatorPrePostAccount, account, tariffDescription };
+    };
 }
 
-const rows = [
-    createData('Frozenttt yoghurt', 159, 6.0, 24, 4.0),
-    createData('Ice cream sandwich', 237, 9.0, 37, 4.3),
-    createData('Eclair', 262, 16.0, 24, 6.0),
-    createData('Cupcake', 305, 3.7, 67, 4.3),
-    createData('Gingerbread', 356, 16.0, 49, 3.9),
-];
-
 export const PrePayment = () => {
+    // login data
+    const auth = useAuth()
+    const {idVendor, codUser} = auth.getUserLogin()
+    const accessToken = auth.getAccessToken()
+    const headers = {
+        'Authorization': `Bearer ${accessToken}`
+    }
+    // search meter data
     const meterSearchResultInitial = {
         meterBrand: '--',
         customerName: '--',
@@ -37,201 +39,210 @@ export const PrePayment = () => {
     }
     const [meterSearchResult, setMeterSearchResult] = useState(meterSearchResultInitial);
     const {meterBrand, customerName, servicePointNumber, account, tariff, serviceAddress} = meterSearchResult;
-    const [error, setError] = useState('');
-    const auth = useAuth();
-    const [open, setOpen] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [result, setResult] = useState(null);
 
-    const handleOpen = () => setOpen(true);
-    const handleSelect = (e,item) => {
-        console.log('PrePayment 83', item)
+    // payment data
+    const [paymentInfo, setPaymentInfo] = useState({
+        totalPayment: '', receivedAmount: '', toAlter: ''
+    });
+    const {totalPayment, receivedAmount, toAlter} = paymentInfo;
+    const [unlockSell, setUnlockSell] = useState(true)
+    const [unlockReset, setUnlockReset] = useState(false)
+    const [urlSell, setUrlSell] = useState('')
+    const [headersSell, setHeadersSell] = useState(headers)
+    const [callingSell, setCallingSell] = useState(false)
+    const [totalPaymentNumber, setTotalPaymentNumber] = useState(0)
 
-        setOpen(false); // Close the modal after selecting an item
-        const {
-            meterSerial,
-            indicatorPrePostAccount,
-            collectionInd,
-            account,
-            tariffDescription,
-            serviceAddress,
-            name
-        } = item;
+    // customer balance data
+    const initialValues = {
+        account: null,
+        customerName: '',
+        tariffDescription: '',
+        serviceAddress: '',
+        lastPaymentDate: null,
+        amountLast: null,
+        debtPayment: null,
+        percentageDebt: null,
+        accountBalance: null,
+        comment: '',
+        unitsPayment: null,
+        units: null,
+        unitsType: '',
+        unitsTopUp: []
+    }
+    const [customerBalance, setCustomerBalance] = useState(initialValues);
+    const [urlBalance, setUrlBalance] = useState('')
+    const [callingBalance, setCallingBalance] = useState(false)
+    const [selected, setSelected] = useState([])
+    const [bodySell, setBodySell] = useState({})
+    const {unitsTopUp} = customerBalance
+    const [transactionId, setTransactionId] = useState('');
+    const [urlPdf, setUrlPdf] = useState('')
+    //common
 
 
-        // console.log('PrePayment 84', meterSerial, indicatorPrePostAccount, collectionInd, account, tariffDescription, serviceAddress, name)
+    const urlBanks = `${API_URL}/venPayment/1.0.1/bankBranches`
 
-        setMeterSearchResult({
-            meterBrand: meterSerial,
-            customerName: name,
-            servicePointNumber: indicatorPrePostAccount,
-            account: account,
-            tariff: tariffDescription,
-            serviceAddress: serviceAddress
+    const urlPaymentMethods = `${API_URL}/venPayment/1.0.1/paymentMethods`
 
+
+    const handlerCalculate = () => {
+
+        const totalPaymentNumber = parseInt(totalPayment.toString().replace(',', '.'));
+        const toAlterNumber = parseInt(toAlter.toString().replace(',', '.'));
+        if (isNaN(totalPaymentNumber) || isNaN(toAlterNumber)) {
+
+            return;
+        }
+
+        setPaymentInfo({
+            ...paymentInfo,
+            ['name']: customerName,
+            ['meterSerial']: meterBrand
         })
+        setTotalPaymentNumber(totalPaymentNumber)
+        setUrlBalance(`${API_URL}/venPayment/1.0.1/?idVendor=${idVendor}&codUser=${codUser}&meterSerial=${meterBrand}&totalPayment=${totalPaymentNumber}&debtPayment=${toAlterNumber}`)
+        setCallingBalance(!callingBalance)
     }
 
-    const handleClose = () => setOpen(false);
+    const handlerSell = () => {
+        const chequeDetails = {}
+        const {meterBrand} = meterSearchResult
 
-    const {formState,selectedOption,findInput, inputOnchange} = useForm({selectedOption:'',findInput:''})
-
-
-    const url = `${API_URL}/venMeter/1.0.1`
-
-    const getFetch = async (url, headers) => {
-        try {
-            const response = await fetch(url, {headers})
-            const data = await response.json()
-            if (!response.ok) {
-                const {msgUser} = data;
-                return {
-                    code: response.status,
-                    data: null,
-                    error: msgUser
-                }
-            }
+        const {
+            account,
+            accountBalance,
+            comment,
+            debtPayment,
+            percentageDebt,
+            units,
+            unitsPayment,
+            unitsType,
+            tariffDescription
+        } = customerBalance
 
 
-            return {
-                code: response.status,
-                data: data,
-                error: null
-            }
-        } catch (error) {
-            console.log(error, 'error')
+        const body = {
+            account,
+            accountBalance,
+            chequeDetails,
+            codUser,
+            comment,
+            debtPayment,
+            idVendor: idVendor.toString(),
+            meterSerial: meterBrand,
+            paymentMethod: "FP001",
+            percentageDebt,
+            requestID: `l3dcTuimFo35o3vF7GVlLwfjz622vQ${new Date().getTime()/1000}`,
+            tariffDescription,
+            totalPayment: totalPaymentNumber,
+            units,
+            unitsPayment,
+            unitsType
         }
-    }
-    const handleSearch = async () => {
-        // console.log(selectedOption, 'selectedOption', inputValue, 'inputValue')
-        if (selectedOption === '0' || selectedOption === '' || findInput === '') {
-            setError('Selecione uma opção e preencha o campo de busca')
-        }
-        const {idVendor, codUser} = auth.getUserLogin()
-        const accessToken =  auth.getAccessToken()
-        console.log('PrePayment 71',idVendor, 'idVendor', codUser, 'codUser', accessToken, 'accessToken')
-
-        const headers = {
-            'Authorization': `Bearer ${accessToken}`
-        }
-        console.log('PrePayment 62',selectedOption, findInput)
-
-        const urlWithParams = `${url}/?idVendor=${idVendor}&codUser=${codUser}&codType=${selectedOption}&value=${findInput}`
-        const result = await getFetch(urlWithParams, headers)
-
-        // console.log('PrePayment 71', result)
-        if (result.error) {
-            // console.log('PrePayment 70', result.data)
-            setError(result.error)
-        }
-        console.log('PrePayment 124',rows)
-
-        if (result.data) {
-            // console.log('PrePayment 74', result.data)
-
-            setResult(result.data)
-            handleOpen()
-
-        }
+        setBodySell(body)
+        setHeadersSell({
+            ...headers, 'Content-Type': 'application/json'
+        })
+        setUrlSell(`${API_URL}/venPayment/1.0.1/`)
+        setCallingSell(!callingSell)
 
 
     }
+    const handlerReset = () => {
 
-    return (
-        <div>
-            <div className='container border rounded flex-grow-1'>
-                {error && <div className="alert alert-danger" role="alert">   {error} </div>}
-                <fieldset>
-                    <div className='row'>
-                        <div className='col-6'>
-                            <div className="d-flex justify-content-between cash-div-custom div-small-height container">
-                                <div className="col-auto">
-                                    <div className="input-group mb-3">
-                                        <select className="form-select input-extra-small m-1" id="inputGroupSelect01" name="selectedOption"
-                                                value={selectedOption}
-                                                onChange={inputOnchange}>
-                                            <option value="0">Pesquisar...</option>
-                                            <option value="MY001">No. Contador (ac)</option>
-                                            <option value="MY002">Identificao do Client (cu)</option>
-                                            <option value="MY003">No. Medidor (mr)</option>
-                                            <option value="MY004">Conta Antiga (oa)</option>
-                                            <option value="MY005">No. Ponto de Serviço (spn)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="col-auto">
-                                    <div className="row">
-                                        <input className="form-control input-extra-small col" type="text"
-                                               required={true}
-                                               onChange={inputOnchange}
-                                               name="findInput"/>
-                                        <a className="btn btn-smart mt-1 col-auto form-control-ls" type="Submit"
-                                           onClick={handleSearch}> 🔍</a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="mr-2 d-flex justify-content-between cash-div-custom">
-                                <div className="col-auto">
-                                    <label className="form-label">Marca do contador:</label>
-                                </div>
-                                <div className="col-auto">
-                                    <label htmlFor="meterBrand"
-                                           className="form-label">{meterBrand}</label>
-                                </div>
-                            </div>
-                            <div className="mr-2 d-flex justify-content-between cash-div-custom">
-                                <div className="col-auto">
-                                    <label className="form-label">Nome do cliente:</label>
-                                </div>
-                                <div className="col-auto">
-                                    <label htmlFor="customerName"
-                                           className="form-label">{customerName}</label>
-                                </div>
-                            </div>
 
-                        </div>
-                        <div className='col-6 mt-3'>
-                            <div className="mr-2 d-flex justify-content-between cash-div-custom">
-                                <div className="col-auto">
-                                    <label className="form-label">SPN:</label>
-                                </div>
-                                <div className="col-auto">
-                                    <label htmlFor="servicePointNumber"
-                                           className="form-label">{servicePointNumber}</label>
-                                </div>
-                            </div>
-                            <div className="mr-2 d-flex justify-content-between cash-div-custom">
-                                <div className="col-auto">
-                                    <label className="form-label">Conta:</label>
-                                </div>
-                                <div className="col-auto">
-                                    <label htmlFor="account"
-                                           className="form-label">{account}</label>
-                                </div>
-                            </div>
-                            <div className="mr-2 d-flex justify-content-between cash-div-custom">
-                                <div className="col-auto">
-                                    <label className="form-label">Tarifa:</label>
-                                </div>
-                                <div className="col-auto">
-                                    <label htmlFor="tariff"
-                                           className="form-label">{tariff}</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="mr-2 d-flex justify-content-between cash-div-custom">
-                        <div className="col-3">
-                            <label className="form-label">Endereço de serviço:</label>
-                        </div>
-                        <div className="col-auto">
-                            <label htmlFor="serviceAddress"
-                                   className="form-label-lg">{serviceAddress}</label>
-                        </div>
-                    </div>
-                </fieldset>
-                {open && <CustomerModals open={open} handleClose={handleClose} rows={result} handleSelect={handleSelect}/>}
-            </div>
+        // const totalPaymentNumber = parseInt(totalPayment.toString().replace(',', '.'));
+        // const toAlterNumber = parseInt(toAlter.toString().replace(',', '.'));
+        // if (isNaN(totalPaymentNumber) || isNaN(toAlterNumber)) {
+        //     console.log('aki revisar',paymentInfo)
+        //
+        //     return;
+        // }
+        // setUrlBalance(`${API_URL}/venPayment/1.0.1/?idVendor=${idVendor}&codUser=${codUser}&meterSerial=${meterBrand}&totalPayment=${totalPaymentNumber}&debtPayment=${toAlterNumber}`)
+        // setCallingBalance(!callingBalance)
+    }
+
+    //metodos de pago
+    const {stateSell} = useFetchSell(urlSell, headersSell, callingSell, bodySell)
+    useEffect(() => {
+        if (!stateSell) return
+
+
+        if (stateSell.data) {
+            setTransactionId(stateSell.data.transactionId)
+            //venPDF/1.0.1/?idVendor=9850&codUser=caixa&duplicate=0&transactionId=202407040000070
+            setUrlPdf(`${API_URL}/venPDF/1.0.1/?idVendor=${idVendor}&codUser=${codUser}&duplicate=0&transactionId=${transactionId}`)
+
+        }
+        console.log('stateSell', stateSell)
+    }, [stateSell, callingSell])
+    const {statePdf} = useFetchPdf(urlPdf, headers, transactionId)
+    //balance
+    const {state} = useFetchBalance(urlBalance, headers, callingBalance)
+    useEffect(() => {
+        // if (!state.data) return
+        if (state.data) {
+            setCustomerBalance(prevState => ({
+                ...prevState, ...state.data,
+                unitsTopUp: state.data.unitsTopUp && state.data.unitsTopUp.length === 0 ?
+                    [
+                        createData(1, 'Cupcake', 305, 3.7, 67),
+                        createData(2, 'Donut', 452, 25.0, 51),
+                        createData(3, 'Eclair', 262, 16.0, 24),
+                        createData(4, 'Frozen yoghurt', 159, 6.0, 24),
+                        createData(5, 'Gingerbread', 356, 16.0, 49),
+                        createData(6, 'Honeycomb', 408, 3.2, 87),
+                        createData(7, 'Ice cream sandwich', 237, 9.0, 37),
+                        createData(8, 'Jelly Bean', 375, 0.0, 94),
+                        createData(9, 'KitKat', 518, 26.0, 65),
+                        createData(10, 'Lollipop', 392, 0.2, 98),
+                        createData(11, 'Marshmallow', 318, 0, 81),
+                        createData(12, 'Nougat', 360, 19.0, 9),
+                        createData(13, 'Oreo', 437, 18.0, 63),
+                    ]
+                    : state.data.unitsTopUp
+            }));
+            setUnlockSell(false)
+        }
+    }, [state, callingBalance])
+    // useEffect(() => {
+    //     if (customerBalance === initialValues) return
+    //     if (customerBalance.unitsTopUp === []) {
+    //         setCustomerBalance({
+    //             ...customerBalance,
+    //             ['unitsTopUp']:  [
+    //                 createData(1, 'Cupcake', 305, 3.7, 67),
+    //                 createData(2, 'Donut', 452, 25.0, 51),
+    //                 createData(3, 'Eclair', 262, 16.0, 24),
+    //                 createData(4, 'Frozen yoghurt', 159, 6.0, 24),
+    //                 createData(5, 'Gingerbread', 356, 16.0, 49),
+    //                 createData(6, 'Honeycomb', 408, 3.2, 87),
+    //                 createData(7, 'Ice cream sandwich', 237, 9.0, 37),
+    //                 createData(8, 'Jelly Bean', 375, 0.0, 94),
+    //                 createData(9, 'KitKat', 518, 26.0, 65),
+    //                 createData(10, 'Lollipop', 392, 0.2, 98),
+    //                 createData(11, 'Marshmallow', 318, 0, 81),
+    //                 createData(12, 'Nougat', 360, 19.0, 9),
+    //                 createData(13, 'Oreo', 437, 18.0, 63),
+    //             ]
+    //         })
+    //     }
+    // }, [customerBalance])
+    useEffect(() => {
+        if ([] === selected) return
+        console.log('falta para ver que hacemos  con lo que seleccionemos', selected)
+    }, [selected])
+
+    // const {data, loading, error} = state
+    return (<div className="me-3">
+            <CustomerScreen meterSearchResult={meterSearchResult}
+                            setMeterSearchResult={setMeterSearchResult}></CustomerScreen>
+            <CustomerPayment paymentInfo={paymentInfo} setPaymentInfo={setPaymentInfo}
+                             handlerCalculate={handlerCalculate} handlerSell={handlerSell} handlerReset={handlerReset}
+                             unlockSell={unlockSell} unlockReset={unlockReset}/>
+            <CustomerBalance customerBalance={customerBalance} setCustomerBalance={setCustomerBalance}/>
+            <CustomerBalanceTable rows={unitsTopUp} selected={selected} setSelected={setSelected}/>
         </div>
+
     )
 }

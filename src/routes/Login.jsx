@@ -4,7 +4,7 @@ import {useAuth} from "../auth/AuthProvider.jsx";
 import {Navigate, useNavigate} from "react-router-dom";
 import {API_URL} from "../auth/constants.js";
 import {useState} from "react";
-import {dtoUserResponse} from "../dto/dtoUserResponse.js";
+import {dtoUserResponse} from "../utils/dto/dtoUserResponse.js";
 
 export const Login = () => {
     const initialForm = {seller: '', user: '', password: ''};
